@@ -9,19 +9,23 @@ def handle_args(parser):
                         help='Resolution of the simulation window. [px]; Enter in format: --res x y')
     parser.add_argument('--fps', type=int, required=False, default=60,
                         help='Framerate of the simulation. [fps]')
-    parser.add_argument('--scale', type=int, required=False, default=100,
-                        help='Scale of the simulation; Scale of 100 means that 1m is equal to 100px.')
     parser.add_argument('--time', type=int, required=False, default=240,
                         help='Length of the simulation. [s]')
+    parser.add_argument('--scale', type=int, required=False, default=120,
+                        help='Scale of the simulation; Scale of 100 means that 1m is equal to 100px.')
+    parser.add_argument('--speed', type=float, required=False, default=1,
+                        help='Playback speed multiplier')
+    parser.add_argument('--path-depth', type=int, required=False, default=50,
+                        help='Number of previous positions to track and show on path.')
     parser.add_argument('--dt', type=float, required=False, default=0.01,
                         help='Length of the smallest step in simulation. [s]')
     parser.add_argument('--ag', type=float, required=False, default=9.81,
                         help='Value of teh gravitational acceleration used in simulation. [m/s^2];')
-    parser.add_argument('--mass', nargs=2, type=tuple, required=False, default=(1, 1.4),
+    parser.add_argument('--mass', nargs=2, type=tuple, required=False, default=(1, 1),
                         help='Masses of bodies in pendulum. [kg]; Enter in format: --mass M1 M2')
-    parser.add_argument('--length', nargs=2, type=tuple, required=False, default=(0.9, 1),
+    parser.add_argument('--length', nargs=2, type=tuple, required=False, default=(1.1, 1),
                         help='Length of rods in pendulum. [m]; Enter in format: --length L1 L2')
-    parser.add_argument('--theta', nargs=2, type=tuple, required=False, default=(90, 60),
+    parser.add_argument('--theta', nargs=2, type=tuple, required=False, default=(100, 60),
                         help='Initial angles of bodies in pendulum. [deg]; Enter in format: --theta t1 t2')
     parser.add_argument('--dtheta', nargs=2, type=tuple, required=False, default=(0, 0),
                         help='Initial velocities of bodies in pendulum. [???]; Enter in format: --dtheta dt1 dt2')
@@ -56,8 +60,9 @@ def derive(y, _, m_1, m_2, l_1, l_2, ag):
 
 class DoublePendulumSimulator:
     COLORS = {
-        "BLACK": (0, 0, 0),
-        "WHITE": (255, 255, 255)
+        'BLACK': (0, 0, 0),
+        'RED': (255, 0, 0),
+        'WHITE': (255, 255, 255)
     }
 
     def __init__(self, args):
@@ -70,9 +75,12 @@ class DoublePendulumSimulator:
         self.width, self.height = args.res
         self.fps = args.fps
 
-        self.scale = args.scale
         self.time, self.dt = args.time, args.dt
         self.points_count = self.time / self.dt
+        self.scale = args.scale
+        self.speed_multiplier = args.speed
+        self.path_depth = args.path_depth
+        self.path = []
 
         self.ag = args.ag
         self.mass_1, self.mass_2 = args.mass
@@ -109,30 +117,37 @@ class DoublePendulumSimulator:
         self.y_2 = self.y_1 - self.length_2 * np.cos(self.theta_2) * self.scale
 
     def draw_frame(self, i):
+        start_pos = (int(self.width / 2), int(self.height / 4))
+        m_1_pos = (int(self.width / 2 + self.x_1[i]), int(self.height / 4 - self.y_1[i]))
+        m_2_pos = (int(self.width / 2 + self.x_2[i]), int(self.height / 4 - self.y_2[i]))
+
         self.window.fill(self.COLORS['BLACK'])
 
-        pygame.draw.circle(self.window, self.COLORS['WHITE'],
-                           (int(self.width / 2 + self.x_1[i]), int(self.height / 4 - self.y_1[i])), 20)
-        pygame.draw.circle(self.window, self.COLORS['WHITE'],
-                           (int(self.width / 2 + self.x_2[i]), int(self.height / 4 - self.y_2[i])), 20)
+        for point_pos in self.path:
+            pygame.draw.circle(self.window, self.COLORS['RED'], point_pos, 2)
 
-        pygame.draw.line(self.window, self.COLORS['WHITE'], (int(self.width / 2), int(self.height / 4)),
-                         (int(self.width / 2 + self.x_1[i]), int(self.height / 4 - self.y_1[i])), 3)
-        pygame.draw.line(self.window, self.COLORS['WHITE'],
-                         (int(self.width / 2 + self.x_1[i]), int(self.height// 4 - self.y_1[i])),
-                         (int(self.width / 2 + self.x_2[i]), int(self.height// 4 - self.y_2[i])), 3)
+        pygame.draw.line(self.window, self.COLORS['WHITE'], start_pos, m_1_pos, 3)
+        pygame.draw.line(self.window, self.COLORS['WHITE'], m_1_pos, m_2_pos, 3)
+
+        pygame.draw.circle(self.window, self.COLORS['WHITE'], m_1_pos, 20)
+        pygame.draw.circle(self.window, self.COLORS['WHITE'], m_2_pos, 20)
 
         pygame.display.update()
-        pygame.time.wait(1000 // self.fps)
+        pygame.time.wait(int(1000 / self.fps))
+
+        self.path.append(m_2_pos)
 
     def run(self):
         self.running = True
         i = 0
-        di = int(1 / self.fps / self.dt)
+        di = int((1 / self.fps / self.dt) * self.speed_multiplier)
 
         while self.running:
             self.draw_frame(i)
             i += di
+
+            if len(self.path) > self.path_depth != 0:
+                self.path.pop(0)
 
             if i > self.points_count:
                 self.running = False
