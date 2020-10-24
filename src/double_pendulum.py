@@ -1,4 +1,3 @@
-import sys
 import argparse
 import pygame
 import numpy as np
@@ -138,8 +137,8 @@ class DoublePendulumSimulator:
 
         # Assigning positions to temp variables so I could shorten draw calls
         start_pos = (int(self.width / 2), int(self.height / 3))
-        m_1_pos = (int(self.width / 2 + self.x_1[i]), int(self.height / 4 - self.y_1[i]))
-        m_2_pos = (int(self.width / 2 + self.x_2[i]), int(self.height / 4 - self.y_2[i]))
+        m_1_pos = (int(start_pos[0] + self.x_1[i]), int(start_pos[1] - self.y_1[i]))
+        m_2_pos = (int(start_pos[0] + self.x_2[i]), int(start_pos[1] - self.y_2[i]))
 
         # Clear frame
         self.window.fill(self.COLORS['BLACK'])
