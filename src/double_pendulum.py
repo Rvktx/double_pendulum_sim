@@ -9,7 +9,7 @@ def handle_args(parser):
     parser.add_argument('--res', nargs=2, type=int, required=False, default=(800, 800),
                         help='Resolution of the simulation window. [px]; Enter in format: --res x y')
     parser.add_argument('--fps', type=int, required=False, default=60,
-                        help='Framerate of the simulation. [fps]')
+                        help='Frame rate of the simulation. [fps]')
     parser.add_argument('--time', type=int, required=False, default=240,
                         help='Length of the simulation. [s]')
     parser.add_argument('--scale', type=int, required=False, default=150,
@@ -29,17 +29,19 @@ def handle_args(parser):
     parser.add_argument('--theta', nargs=2, type=float, required=False, default=(40, 160),
                         help='Initial angles of bodies in pendulum. [deg]; Enter in format: --theta t1 t2')
     parser.add_argument('--dtheta', nargs=2, type=float, required=False, default=(0, 0),
-                        help='Initial velocities of bodies in pendulum. [???]; Enter in format: --dtheta dt1 dt2')
+                        help='Initial velocities of bodies in pendulum. [deg/s]; Enter in format: --dtheta dt1 dt2')
 
     return parser.parse_args()
 
 
-def deg_to_rad(theta_1_deg, theta_2_deg):
+def deg_to_rad(theta_deg):
     """ Convert degrees to radians. """
-    theta_1_rad = theta_1_deg * 0.0174532925
-    theta_2_rad = theta_2_deg * 0.0174532925
+    return theta_deg * 0.0174532925
 
-    return theta_1_rad, theta_2_rad
+
+def rad_to_deg(theta_rad):
+    """ Convert degrees to radians. """
+    return theta_rad * 57.2957795
 
 
 def derive(y, _, m_1, m_2, l_1, l_2, ag):
@@ -74,7 +76,7 @@ class DoublePendulumSimulator:
     def __init__(self, args):
         # Declaring some variables needed in other methods.
         self.running = False
-        self.window = None
+        self.window, self.font = (None, None)
         self.theta_1, self.d_theta_1 = (None, None)
         self.theta_2, self.d_theta_2 = (None, None)
         self.x_1, self.y_1, self.x_2, self.y_2 = (None, None, None, None)
@@ -97,8 +99,13 @@ class DoublePendulumSimulator:
         self.length_1, self.length_2 = args.length
 
         # Initial angles and angular velocities
-        self.initial_theta_1, self.initial_theta_2 = deg_to_rad(*args.theta)
-        self.initial_d_theta_1, self.initial_d_theta_2 = args.dtheta
+        self.initial_theta_1_deg, self.initial_theta_2_deg = args.theta
+        self.initial_d_theta_1_deg, self.initial_d_theta_2_deg = args.dtheta
+
+        self.initial_theta_1 = deg_to_rad(self.initial_theta_1_deg)
+        self.initial_theta_2 = deg_to_rad(self.initial_theta_2_deg)
+        self.initial_d_theta_1 = deg_to_rad(self.initial_d_theta_1_deg)
+        self.initial_d_theta_2 = deg_to_rad(self.initial_d_theta_2_deg)
 
         # Base for solving equations with SciPy
         self.time_range = np.arange(0, self.time + self.dt, self.dt)
@@ -116,6 +123,9 @@ class DoublePendulumSimulator:
         pygame.display.set_caption('Double pendulum simulation')
         pygame.display.flip()
 
+        pygame.font.init()
+        self.font = pygame.font.Font('resources/RobotoMono.ttf', 18)
+
     def solve(self):
         """ Solve equations and set some fields. """
         result = odeint(derive, self.initial_conditions, self.time_range, args=(self.mass_1, self.mass_2,
@@ -127,18 +137,36 @@ class DoublePendulumSimulator:
 
     def get_cartesian(self):
         """ Convert angular positions to cartesian coordinates and assign them to their fields. """
-        self.x_1 = self.length_1 * np.sin(self.theta_1) * self.scale
-        self.y_1 = -self.length_1 * np.cos(self.theta_1) * self.scale
-        self.x_2 = self.x_1 + self.length_2 * np.sin(self.theta_2) * self.scale
-        self.y_2 = self.y_1 - self.length_2 * np.cos(self.theta_2) * self.scale
+        self.x_1 = self.length_1 * np.sin(self.theta_1)
+        self.y_1 = -self.length_1 * np.cos(self.theta_1)
+        self.x_2 = self.x_1 + self.length_2 * np.sin(self.theta_2)
+        self.y_2 = self.y_1 - self.length_2 * np.cos(self.theta_2)
 
     def draw_frame(self, i):
         """ Draw a frame on the sim window. """
 
-        # Assigning positions to temp variables so I could shorten draw calls
+        # Assigning positions to temp variables
         start_pos = (int(self.width / 2), int(self.height / 3))
-        m_1_pos = (int(start_pos[0] + self.x_1[i]), int(start_pos[1] - self.y_1[i]))
-        m_2_pos = (int(start_pos[0] + self.x_2[i]), int(start_pos[1] - self.y_2[i]))
+        m_1_pos = (int(start_pos[0] + self.x_1[i] * self.scale), int(start_pos[1] - self.y_1[i] * self.scale))
+        m_2_pos = (int(start_pos[0] + self.x_2[i] * self.scale), int(start_pos[1] - self.y_2[i] * self.scale))
+
+        m_1_x_pos_raw = self.x_1[i]
+        m_1_y_pos_raw = self.y_1[i]
+        m_1_angle = rad_to_deg(self.theta_1[i]) % 360
+        m_1_velocity = rad_to_deg(self.d_theta_1[i])
+
+        m_2_x_pos_raw = self.x_2[i]
+        m_2_y_pos_raw = self.y_2[i]
+        m_2_angle = rad_to_deg(self.theta_2[i]) % 360
+        m_2_velocity = rad_to_deg(self.d_theta_2[i])
+
+        info_str = 'Mass {} X: {:05.2f}m, Y: {:05.2f}m, Angle: {:05.1f}deg, Velocity: {:06.1f}deg/s'
+        m_1_info_str = info_str.format(1, m_1_x_pos_raw, m_1_y_pos_raw, m_1_angle, m_1_velocity)
+        m_2_info_str = info_str.format(1, m_2_x_pos_raw, m_2_y_pos_raw, m_2_angle, m_2_velocity)
+
+        # Create info objects
+        m_1_info = self.font.render(m_1_info_str, 0, self.COLORS['WHITE'])
+        m_2_info = self.font.render(m_2_info_str, 0, self.COLORS['WHITE'])
 
         # Clear frame
         self.window.fill(self.COLORS['BLACK'])
@@ -158,6 +186,10 @@ class DoublePendulumSimulator:
         # Draw bodies
         pygame.draw.circle(self.window, self.COLORS['WHITE'], m_1_pos, 20)
         pygame.draw.circle(self.window, self.COLORS['WHITE'], m_2_pos, 20)
+
+        # Draw info objects on window surface
+        self.window.blit(m_1_info, (10, 10))
+        self.window.blit(m_2_info, (10, 38))
 
         # Update a frame and wait till next frame
         pygame.display.update()
