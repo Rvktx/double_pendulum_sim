@@ -1,6 +1,6 @@
 import numpy as np
-from src.display import Display
-from src.double_pendulum import DoublePendulum
+from display import Display
+from double_pendulum import DoublePendulum
 
 
 class Simulation:

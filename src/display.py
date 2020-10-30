@@ -1,4 +1,5 @@
 import pygame
+import os
 
 
 class Display:
@@ -20,7 +21,8 @@ class Display:
 
         # Initializing pygame font
         pygame.font.init()
-        self.font = pygame.font.Font('resources/RobotoMono.ttf', 18)
+        font_path = os.path.join(os.path.dirname(__file__), 'resources/RobotoMono.ttf')
+        self.font = pygame.font.Font(font_path, 18)
 
     def draw_rod(self, start, end):
         """ Draw a rod. """
@@ -35,7 +37,10 @@ class Display:
 
         # Doesn't do anything if path contains too few elements
         if len(path) > 1:
-            start = len(path) - path_depth if path_depth <= len(path) else 1
+            if path_depth == 0 or path_depth >= len(path):  # Infinite path or path too short to slice
+                start = 1
+            else:
+                start = len(path) - path_depth
 
             for point in range(start, len(path)):
                 pygame.draw.line(self.window, self.COLORS['RED'], path[point], path[point - 1], 2)
